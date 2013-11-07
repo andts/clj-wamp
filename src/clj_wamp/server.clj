@@ -47,6 +47,8 @@
 (defn- next-sess-id []
   (swap! max-sess-id inc))
 
+(defn- ref? [x]
+  (instance? clojure.lang.Ref x))
 
 ;; Client utils
 
@@ -150,10 +152,22 @@
         (if (some #{sess-id} includes)
           (apply send! sess-id data))))))
 
-(defn get-topic-clients [topic]
+(defn get-topic-clients
   "Returns all client session ids within a topic."
+  [topic]
   (if-let [clients (@topic-clients topic)]
     (keys clients)))
+
+(defn- get-callbacks
+  "Get callbacks from configuration map
+  and evaluate/deref the value if it is not a plain map"
+  [map key]
+  (let [callbacks-val (get map key)]
+    (cond
+      (ref? callbacks-val) @callbacks-val
+      (fn? callbacks-val) (callbacks-val)
+      (map? callbacks-val) callbacks-val
+      :else callbacks-val)))
 
 ;; WAMP websocket send! utils
 
@@ -357,7 +371,7 @@
         {perm-key
          (into {}
            (remove nil?
-             (for [[topic _] (get wamp-cbs wamp-key)]
+             (for [[topic _] (get-callbacks wamp-cbs wamp-key)]
                (if (permission? perms perm-key topic)
                  {topic true}))))}))))
 
@@ -503,10 +517,10 @@
     (let [[msg-type & msg-params] (try (json/decode data)
                                     (catch com.fasterxml.jackson.core.JsonParseException ex
                                       [nil nil]))
-          on-call-cbs  (callbacks :on-call)
-          on-sub-cbs   (callbacks :on-subscribe)
+          on-call-cbs  (get-callbacks callbacks :on-call)
+          on-sub-cbs   (get-callbacks callbacks :on-subscribe)
           on-unsub-cb  (callbacks :on-unsubscribe)
-          on-pub-cbs   (callbacks :on-publish)
+          on-pub-cbs   (get-callbacks callbacks :on-publish)
           perm-cb      (get-in callbacks [:on-auth :permissions])]
       (case msg-type
 

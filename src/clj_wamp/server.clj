@@ -514,7 +514,7 @@
   [sess-id callbacks]
   (fn [data]
     (log/trace "Data received:" data)
-    (let [[msg-type & msg-params] (try (json/decode data)
+    (let [[msg-type & msg-params] (try (json/decode data keyword)
                                     (catch com.fasterxml.jackson.core.JsonParseException ex
                                       [nil nil]))
           on-call-cbs  (get-callbacks callbacks :on-call)
